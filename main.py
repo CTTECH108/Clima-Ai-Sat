@@ -6,9 +6,9 @@ import cv2
 from io import BytesIO
 from app import ingestion, preprocessing, ndvi, models, utils
 
-st.set_page_config(layout="wide", page_title="ClimaAI-MicroSat ML Module (Updated)")
+st.set_page_config(layout="wide", page_title="ClimaAI-MicroSat ML Module")
 
-st.title("ClimaAI-MicroSat — ML Module & Visualization (Updated and Robust)")
+st.title("ClimaAI-MicroSat — ML Module & Visualization")
 
 # ---------------- Session State Handling ----------------
 if "df" not in st.session_state:
@@ -77,6 +77,11 @@ if df is None:
 # Remove duplicate columns immediately
 df = df.loc[:, ~df.columns.duplicated()]
 
+# 🔹 Force convert all non-timestamp cols to numeric where possible
+for col in df.columns:
+    if col.lower() not in ["timestamp", "created_at"]:
+        df[col] = pd.to_numeric(df[col], errors="ignore")
+
 st.subheader("Raw Data Preview")
 st.write(df.head(30))
 
@@ -132,6 +137,12 @@ st.write(df_filled.head(20))
 
 # ---------------- Identify numeric columns ----------------
 numeric_cols = df_filled.select_dtypes(include=[np.number]).columns.tolist()
+
+if not numeric_cols:
+    st.warning("⚠️ No numeric columns detected — trying to force convert...")
+    df_filled = df_filled.apply(pd.to_numeric, errors="ignore")
+    numeric_cols = df_filled.select_dtypes(include=[np.number]).columns.tolist()
+
 st.write("Numeric columns detected:", numeric_cols)
 
 # ---------------- Modeling / Analysis ----------------
@@ -141,7 +152,7 @@ possible_features = numeric_cols.copy()
 feature_cols = st.multiselect(
     "Select features for anomaly detection",
     possible_features,
-    default=possible_features[:4]
+    default=possible_features[:4] if len(possible_features) >= 4 else possible_features
 )
 
 if st.button("Train Anomaly Detector"):
@@ -155,6 +166,8 @@ if st.button("Train Anomaly Detector"):
             st.success("Anomaly model trained.")
         except Exception as e:
             st.error(f"Error training anomaly detector: {e}")
+
+# (rest of code remains the same: predictor training, NDVI, visualization, export...)
 
 # Predictor training
 preferred_targets = ['temp', 'temperature', 't', 'field1', 'field2']
